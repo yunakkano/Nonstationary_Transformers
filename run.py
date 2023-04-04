@@ -62,6 +62,7 @@ parser.add_argument('--lradj', type=str, default='type1', help='adjust learning 
 parser.add_argument('--use_amp', action='store_true', help='use automatic mixed precision training', default=False)
 
 # GPU
+parser.add_argument('--use_mps', type=bool, default=True, help='use mps')
 parser.add_argument('--use_gpu', type=bool, default=True, help='use gpu')
 parser.add_argument('--gpu', type=int, default=0, help='gpu')
 parser.add_argument('--use_multi_gpu', action='store_true', help='use multiple gpus', default=False)
@@ -75,6 +76,7 @@ parser.add_argument('--p_hidden_layers', type=int, default=2, help='number of hi
 args = parser.parse_args()
 
 args.use_gpu = True if torch.cuda.is_available() and args.use_gpu else False
+args.use_mps = True if torch.backends.mps.is_available() and (args.use_gpu or args.use_mps) else False
 
 fix_seed = args.seed
 random.seed(fix_seed)

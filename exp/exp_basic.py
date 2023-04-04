@@ -14,7 +14,11 @@ class Exp_Basic(object):
         return None
 
     def _acquire_device(self):
-        if self.args.use_gpu:
+        # When 'use_mps' options is set, return mps device.
+        if self.args.use_mps and torch.backends.mps.is_available() and torch.backends.mps.is_built():
+            device = torch.device("mps")
+            print('Use MPS')
+        elif self.args.use_gpu:
             os.environ["CUDA_VISIBLE_DEVICES"] = str(
                 self.args.gpu) if not self.args.use_multi_gpu else self.args.devices
             device = torch.device('cuda:{}'.format(self.args.gpu))
