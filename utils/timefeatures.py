@@ -111,6 +111,9 @@ def time_features_from_frequency_str(freq_str: str) -> List[TimeFeature]:
 
     for offset_type, feature_classes in features_by_offsets.items():
         if isinstance(offset, offset_type):
+            # e.g. if freq_str = '3s', offset = <3 * Second> which is the pandas offset object <Seconds>.
+            # Then, isinstance(<3 * Seconds>, offsets.Second) is True.
+            # Finally we get feature_classes = [SecondOfMinute(), MinuteOfHour(), HourOfDay(), DayOfWeek(), DayOfMonth(), DayOfYear()]
             return [cls() for cls in feature_classes]
 
     supported_freq_msg = f"""
@@ -131,4 +134,18 @@ def time_features_from_frequency_str(freq_str: str) -> List[TimeFeature]:
 
 
 def time_features(dates, freq='h'):
+    """
+    freq: Frequency string of the form [multiple][granularity] such as "12H", "5min", "1D" etc.
+    e.g. if freq = '2s', 
+    time_features_from_frequency_str(freq) = [SecondOfMinute(), MinuteOfHour(), HourOfDay(), DayOfWeek(), DayOfMonth(), DayOfYear()]
+    This function eventually returns a numpy array:
+    array([
+        [SecondOfMinute(index: pd.DatetimeIndex)],
+        [MinuteOfHour(index: pd.DatetimeIndex))],
+        [HourOfDay(index: pd.DatetimeIndex))],
+        [DayOfWeek(index: pd.DatetimeIndex))],
+        [DayOfMonth(index: pd.DatetimeIndex))],
+        [DayOfYear(index: pd.DatetimeIndex))]
+    ])
+    """
     return np.vstack([feat(dates) for feat in time_features_from_frequency_str(freq)])
