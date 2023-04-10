@@ -18,10 +18,28 @@ class TimeFeature:
 
 
 class SecondOfMinute(TimeFeature):
-    """Minute of hour encoded as value between [-0.5, 0.5]"""
+    """Second of minute encoded as value between [-0.5, 0.5]"""
 
     def __call__(self, index: pd.DatetimeIndex) -> np.ndarray:
         return index.second / 59.0 - 0.5
+
+class MilliSecondOfMinute(TimeFeature):
+    """Millisecond of minute encoded as value between [-0.5, 0.5]"""
+
+    def __call__(self, index: pd.DatetimeIndex) -> np.ndarray:
+        return (index.second  + index.microsecond/1000_000.0) / 59.0 - 0.5
+    
+class MicroSecondOfMinute(TimeFeature):
+    """Microsecond of minute encoded as value between [-0.5, 0.5]"""
+
+    def __call__(self, index: pd.DatetimeIndex) -> np.ndarray:
+        return (index.second  + index.microsecond/1000_000.0) / 59.0 - 0.5
+
+class NanoSecondOfMinute(TimeFeature):
+    """Nanosecond of minute encoded as value between [-0.5, 0.5]"""
+
+    def __call__(self, index: pd.DatetimeIndex) -> np.ndarray:
+        return (index.second  + index.microsecond/1000_000.0 + index.nanosecond/1000_000_000.0) / 59.0 - 0.5
 
 
 class MinuteOfHour(TimeFeature):
@@ -105,6 +123,30 @@ def time_features_from_frequency_str(freq_str: str) -> List[TimeFeature]:
             DayOfMonth,
             DayOfYear,
         ],
+        offsets.Milli: [
+            MilliSecondOfMinute,
+            MinuteOfHour,
+            HourOfDay,
+            DayOfWeek,
+            DayOfMonth,
+            DayOfYear,
+        ],
+        offsets.Micro: [
+            MicroSecondOfMinute,
+            MinuteOfHour,
+            HourOfDay,
+            DayOfWeek,
+            DayOfMonth,
+            DayOfYear,
+        ],
+        offsets.Nano: [
+            NanoSecondOfMinute,
+            MinuteOfHour,
+            HourOfDay,
+            DayOfWeek,
+            DayOfMonth,
+            DayOfYear,
+        ],
     }
 
     offset = to_offset(freq_str)
@@ -129,6 +171,9 @@ def time_features_from_frequency_str(freq_str: str) -> List[TimeFeature]:
         T   - minutely
             alias: min
         S   - secondly
+        ms  - millisecondly
+        us  - microsecondly
+        ns  - nanosecondly
     """
     raise RuntimeError(supported_freq_msg)
 

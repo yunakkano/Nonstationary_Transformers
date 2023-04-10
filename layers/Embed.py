@@ -62,14 +62,14 @@ class TemporalEmbedding(nn.Module):
     def __init__(self, d_model, embed_type='fixed', freq='h'):
         super(TemporalEmbedding, self).__init__()
 
-        minute_size = 4
+        minute_size = 4 # minutes data is grouped into 4 categories; 00-16 15-30 30-45 45-60
         hour_size = 24
         weekday_size = 7
         day_size = 32
         month_size = 13
 
         Embed = FixedEmbedding if embed_type == 'fixed' else nn.Embedding
-        if freq == 't':
+        if freq == 't': # t option means 'minutes' :  to_offset('t') -> <Minute>
             self.minute_embed = Embed(minute_size, d_model)
         self.hour_embed = Embed(hour_size, d_model)
         self.weekday_embed = Embed(weekday_size, d_model)
@@ -77,6 +77,13 @@ class TemporalEmbedding(nn.Module):
         self.month_embed = Embed(month_size, d_model)
 
     def forward(self, x):
+        """
+        Assuming that x has a shape of (batch_size, seq_length, 5), where batch_size is the size of the batch, 
+        and seq_length is the length of each sequence in the batch, then the shape of minute_x, hour_x, weekday_x, day_x, 
+        and month_x would be (batch_size, seq_length, d_model) since d_model is the output dimension of the Embedding layers.
+
+        Refer data_provider.data_loader.Dataset.__read_data__() where datetime index is preprocessed to fit with the Embedding layer's input.
+        """
         x = x.long()
 
         minute_x = self.minute_embed(x[:, :, 4]) if hasattr(self, 'minute_embed') else 0.
@@ -84,7 +91,12 @@ class TemporalEmbedding(nn.Module):
         weekday_x = self.weekday_embed(x[:, :, 2])
         day_x = self.day_embed(x[:, :, 1])
         month_x = self.month_embed(x[:, :, 0])
-
+        """ 
+        Return tensor would have a shape of (batch_size, seq_length, d_model).
+        This type of operation is commonly used in neural networks that process sequential data, 
+        such as recurrent neural networks (RNNs) and transformers, where each element in the sequence is represented 
+        by a vector in a high-dimensional space, and these vectors are combined to form a representation of the entire sequence.
+        """
         return hour_x + weekday_x + day_x + month_x + minute_x
 
 
@@ -92,7 +104,7 @@ class TimeFeatureEmbedding(nn.Module):
     def __init__(self, d_model, embed_type='timeF', freq='h'):
         super(TimeFeatureEmbedding, self).__init__()
 
-        freq_map = {'h': 4, 't': 5, 's': 6, 'm': 1, 'a': 1, 'w': 2, 'd': 3, 'b': 3}
+        freq_map = {'h': 4, 't': 5, 's': 6, 'ms': 6, 'us': 6, 'ns': 6, 'm': 1, 'a': 1, 'w': 2, 'd': 3, 'b': 3}
         d_inp = freq_map[freq]
         self.embed = nn.Linear(d_inp, d_model, bias=False)
 
@@ -112,6 +124,8 @@ class DataEmbedding(nn.Module):
         self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, x, x_mark):
+        # value_embedding(x) and position_embedding(x) are embedding feature columns without datetime info, 
+        # and temporal_embedding(x_mark) is the part embedding datetime info.
         x = self.value_embedding(x) + self.temporal_embedding(x_mark) + self.position_embedding(x)
         return self.dropout(x)
 

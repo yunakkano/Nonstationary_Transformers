@@ -59,6 +59,8 @@ class Exp_Main(Exp_Basic):
         total_loss = []
         self.model.eval()
         with torch.no_grad():
+                # batch_x, batch_y,.... refer data_provider.data_loader class Dataset __getitem__()
+                # batch_x_mark, batch_y_mark) = time series index
             for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(vali_loader):
                 batch_x = batch_x.float().to(self.device)
                 batch_y = batch_y.float()
@@ -121,6 +123,8 @@ class Exp_Main(Exp_Basic):
 
             self.model.train()
             epoch_time = time.time()
+            # batch_x, batch_y,.... refer data_provider.data_loader class Dataset __getitem__()
+            # batch_x_mark, batch_y_mark = time series index
             for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(train_loader):
                 iter_count += 1
                 model_optim.zero_grad()
@@ -132,6 +136,10 @@ class Exp_Main(Exp_Basic):
 
                 # decoder input
                 dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len:, :]).float()
+                """
+                 we will take the known 5 days before the target sequence as “starttoken”, and feed the generative-style inference 
+                 decoder with Xde = {X5d, X0}. The X0 contains target sequence’s timestamp, i.e., the context at the target week
+                """
                 dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
 
                 # encoder - decoder

@@ -256,6 +256,7 @@ class Dataset_Custom(Dataset):
         df_stamp['date'] = pd.to_datetime(df_stamp.date)
         # If timeenc = 0 de-compose the datetime column into m, d, w and h, and drop the original date column. 
         if self.timeenc == 0:
+            # The second argument of apply(), 1, specifies that the function is applied row-wise, i.e., to each row of the 'date' column.
             df_stamp['month'] = df_stamp.date.apply(lambda row: row.month, 1)
             df_stamp['day'] = df_stamp.date.apply(lambda row: row.day, 1)
             df_stamp['weekday'] = df_stamp.date.apply(lambda row: row.weekday(), 1)
@@ -271,16 +272,21 @@ class Dataset_Custom(Dataset):
         self.data_stamp = data_stamp
 
     def __getitem__(self, index):
-        s_begin = index
+        s_begin = index  # t0, t1, .... , s_begin , ..(seq_len to read)... s_end , ...
         s_end = s_begin + self.seq_len
-        r_begin = s_end - self.label_len
+        """
+         Take predicting 168 points as an example (7-day temperature prediction in the experiment section), 
+         we will take the known 5 days before the target sequence as “starttoken”, and feed the generative-style 
+         inference decoder with Xde = {X5d, X0}. The X0 contains target sequence’s timestamp, i.e., the context at the target week
+        """
+        r_begin = s_end - self.label_len  # t0, t1, .... , s_begin , ...., r_begin, ..(label_len).., s_end, .. (pred_len).., r_end
         r_end = r_begin + self.label_len + self.pred_len
 
-        seq_x = self.data_x[s_begin:s_end]
-        seq_y = self.data_y[r_begin:r_end]
+        seq_x = self.data_x[s_begin:s_end] # encoder input
+        seq_y = self.data_y[r_begin:r_end] # decoder input
         seq_x_mark = self.data_stamp[s_begin:s_end]
         seq_y_mark = self.data_stamp[r_begin:r_end]
-
+        # Refer to exp.exp_main.Exp_main  vali() / train() / test()
         return seq_x, seq_y, seq_x_mark, seq_y_mark
 
     def __len__(self):
