@@ -206,6 +206,8 @@ class Dataset_Custom(Dataset):
         # init
         assert flag in ['train', 'test', 'val']
         type_map = {'train': 0, 'val': 1, 'test': 2}
+        df_loader = {'.csv': pd.read_csv, '.xlsx': pd.read_excel, '.pkl': pd.read_pickle, 
+                     '.pickle': pd.read_pickle, '.parquet': pd.read_parquet}
         self.set_type = type_map[flag]
 
         self.features = features
@@ -216,20 +218,21 @@ class Dataset_Custom(Dataset):
 
         self.root_path = root_path
         self.data_path = data_path
-        self.__read_data__()
+        _, file_extension = os.path.splitext(data_path)
 
-    def __read_data__(self):
+        self.__read_data__(df_loader[file_extension])
+
+    def __read_data__(self, df_loader):
         self.scaler = StandardScaler()
-        df_raw = pd.read_csv(os.path.join(self.root_path,
-                                          self.data_path))
+        df_raw = df_loader(os.path.join(self.root_path, self.data_path))
 
         '''
-        df_raw.columns: ['date', ...(other features), target feature]
+        df_raw.columns: ['date_time', ...(other features), target feature]
         '''
         cols = list(df_raw.columns)
         cols.remove(self.target)
-        cols.remove('date')
-        df_raw = df_raw[['date'] + cols + [self.target]]
+        cols.remove('date_time')
+        df_raw = df_raw[['date_time'] + cols + [self.target]]
         # print(cols)
         num_train = int(len(df_raw) * 0.7)
         num_test = int(len(df_raw) * 0.2)
@@ -252,19 +255,27 @@ class Dataset_Custom(Dataset):
         else:
             data = df_data.values
 
-        df_stamp = df_raw[['date']][border1:border2]
-        df_stamp['date'] = pd.to_datetime(df_stamp.date)
+        df_stamp = df_raw[['date_time']][border1:border2]
+        df_stamp['date_time'] = pd.to_datetime(df_stamp.date)
         # If timeenc = 0 de-compose the datetime column into m, d, w and h, and drop the original date column. 
         if self.timeenc == 0:
             # The second argument of apply(), 1, specifies that the function is applied row-wise, i.e., to each row of the 'date' column.
-            df_stamp['month'] = df_stamp.date.apply(lambda row: row.month, 1)
-            df_stamp['day'] = df_stamp.date.apply(lambda row: row.day, 1)
-            df_stamp['weekday'] = df_stamp.date.apply(lambda row: row.weekday(), 1)
-            df_stamp['hour'] = df_stamp.date.apply(lambda row: row.hour, 1)
-            data_stamp = df_stamp.drop(['date'], 1).values
+            df_stamp['month'] = df_stamp.date_time.dt.month
+            df_stamp['day'] = df_stamp.date_time.dt.day
+            df_stamp['weekday'] = df_stamp.date_time.dt.weekday
+            df_stamp['hour'] = df_stamp.date_time.dt.hour
+            if  self.freq == 't' or  self.freq == 'min' or  self.freq == 'ns':
+                df_stamp['minute'] = df_stamp.date_time.dt.minute // 15
+            if  self.freq == 'ns':
+                df_stamp['month'] = (df_stamp.month - 1) // 3
+                df_stamp['day'] = (df_stamp.day - 1) // 7
+                df_stamp['hour'] = df_stamp.hour // 2
+                df_stamp['second'] = df_stamp.date_time.dt.second + df_stamp.date_time.dt.microsecond / 1000_000.0 + df_stamp.date_time.dt.nanosecond / 1000_000_000.0
+
+            data_stamp = df_stamp.drop(['date_time'], 1).values
         #  Otherwise,
         elif self.timeenc == 1:
-            data_stamp = time_features(pd.to_datetime(df_stamp['date'].values), freq=self.freq)
+            data_stamp = time_features(pd.to_datetime(df_stamp['date_time'].values), freq=self.freq)
             data_stamp = data_stamp.transpose(1, 0)
 
         self.data_x = data[border1:border2]
