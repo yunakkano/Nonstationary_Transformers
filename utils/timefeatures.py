@@ -27,19 +27,19 @@ class MilliSecondOfMinute(TimeFeature):
     """Millisecond of minute encoded as value between [-0.5, 0.5]"""
 
     def __call__(self, index: pd.DatetimeIndex) -> np.ndarray:
-        return (index.second  + index.microsecond/1000_000.0) / 59.0 - 0.5
+        return (index.second  + index.microsecond/1000_000.0) / 60.0 - 0.5
     
 class MicroSecondOfMinute(TimeFeature):
     """Microsecond of minute encoded as value between [-0.5, 0.5]"""
 
     def __call__(self, index: pd.DatetimeIndex) -> np.ndarray:
-        return (index.second  + index.microsecond/1000_000.0) / 59.0 - 0.5
+        return (index.second  + index.microsecond/1000_000.0) / 60.0 - 0.5
 
 class NanoSecondOfMinute(TimeFeature):
     """Nanosecond of minute encoded as value between [-0.5, 0.5]"""
 
     def __call__(self, index: pd.DatetimeIndex) -> np.ndarray:
-        return (index.second  + index.microsecond/1000_000.0 + index.nanosecond/1000_000_000.0) / 59.0 - 0.5
+        return (index.second  + index.microsecond/1000_000.0 + index.nanosecond/1000_000_000.0) / 60.0 - 0.5
 
 
 class MinuteOfHour(TimeFeature):
