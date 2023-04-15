@@ -34,6 +34,7 @@ class TokenEmbedding(nn.Module):
                 nn.init.kaiming_normal_(m.weight, mode='fan_in', nonlinearity='leaky_relu')
 
     def forward(self, x):
+        #print('TokenEmbedding x.permute(0,1,2) = ', x.permute(0, 2, 1).size())
         x = self.tokenConv(x.permute(0, 2, 1)).transpose(1, 2)
         return x
 
@@ -112,7 +113,7 @@ class TemporalEmbedding(nn.Module):
 
 
 class TemporalEmbeddingHighFreq(nn.Module):
-    def __init__(self, d_model, embed_type='fixed', freq='ns'):
+    def __init__(self, d_model, seq_len, embed_type='fixed', freq='ns'):
         super(TemporalEmbeddingHighFreq, self).__init__()
 
         minute_size = 4
@@ -120,6 +121,8 @@ class TemporalEmbeddingHighFreq(nn.Module):
         weekday_size = 7
         day_size = 4
         month_size = 4
+        self.d_model = d_model
+        self.seq_len = seq_len
 
         Embed = FixedEmbedding if embed_type == 'fixed' else nn.Embedding
         self.minute_embed = Embed(minute_size, d_model)
@@ -129,21 +132,29 @@ class TemporalEmbeddingHighFreq(nn.Module):
         self.month_embed = Embed(month_size, d_model)
 
         # Linear layer to process continuous seconds feature
-        self.seconds_linear = nn.Linear(1, d_model)
+        # self.seconds_linear = nn.Linear(seq_len, d_model)
+
+        # To make the tensor of shape B x S x d_model from second_x tensor, prepare duplicator tensor
+        # self.duplicator = torch.ones(1, 1, d_model).to(device='mps:0')
 
     def forward(self, x):
         second_x = x[:, :, 5].float() / 60.0 # Extract continuous(float) feature of seconds ( nanoseconds).
         x_discrete = x[:, :, :5].long() # Extract discrete features such as month day weekday hour or minute
-
         minute_x = self.minute_embed(x_discrete[:, :, 4])
         hour_x = self.hour_embed(x_discrete[:, :, 3])
         weekday_x = self.weekday_embed(x_discrete[:, :, 2])
         day_x = self.day_embed(x_discrete[:, :, 1])
         month_x = self.month_embed(x_discrete[:, :, 0])
-
+        #print('TemporalEmbeddingHighFreq month_x = ', day_x.size())
+        #print('TemporalEmbeddingHighFreq month_x = ', month_x.size())
+        #print('TemporalEmbeddingHighFreq second_x = ', second_x.size())
+        
         # Apply linear layer to continuous seconds feature
-        second_x = self.seconds_linear(second_x)
-
+        #second_x = self.seconds_linear(second_x)
+        second_x.unsqueeze_(-1)
+        second_x = second_x.expand(second_x.size()[0], second_x.size()[1], self.d_model)
+        #print("second_x shape = ", second_x.size())
+        #print("second_x  = ", second_x)
         # Return combined tensor
         return hour_x + weekday_x + day_x + month_x + minute_x + second_x
 
@@ -157,19 +168,23 @@ class TimeFeatureEmbedding(nn.Module):
         self.embed = nn.Linear(d_inp, d_model, bias=False)
 
     def forward(self, x):
+        #print('TimeFeatureEmbedding x = ', x.size())
         return self.embed(x)
 
 
 class DataEmbedding(nn.Module):
-    def __init__(self, c_in, d_model, embed_type='fixed', freq='h', dropout=0.1):
+    def __init__(self, c_in, d_model, seq_len, embed_type='fixed', freq='h', dropout=0.1):
         super(DataEmbedding, self).__init__()
 
         self.value_embedding = TokenEmbedding(c_in=c_in, d_model=d_model)
         self.position_embedding = PositionalEmbedding(d_model=d_model)
-        if freq == 'ns':
-            self.temporal_embedding = TemporalEmbeddingHighFreq(d_model=d_model, embed_type=embed_type,freq=freq)
-        elif embed_type != 'timeF':
-            self.temporal_embedding = TemporalEmbedding(d_model=d_model, embed_type=embed_type,freq=freq)
+        
+        if embed_type != 'timeF':
+            self.temporal_embedding = TemporalEmbeddingHighFreq(
+                d_model=d_model, seq_len=seq_len, embed_type=embed_type,freq=freq
+            ) if freq in ['ms','us','ns'] else TemporalEmbedding(
+                d_model=d_model,embed_type=embed_type,freq=freq
+            )
         else: 
             self.temporal_embedding = TimeFeatureEmbedding(d_model=d_model, embed_type=embed_type, freq=freq)
         self.dropout = nn.Dropout(p=dropout)
@@ -177,7 +192,10 @@ class DataEmbedding(nn.Module):
     def forward(self, x, x_mark):
         # value_embedding(x) and position_embedding(x) are embedding feature columns without datetime info, 
         # and temporal_embedding(x_mark) is the part embedding datetime info.
+        # x = B x seq_len x Number of features / 
         x = self.value_embedding(x) + self.temporal_embedding(x_mark) + self.position_embedding(x)
+        #print('DataEmbedding x = ', x.size())
+        #print('DataEmbedding x_mark = ', x_mark.size())
         return self.dropout(x)
 
 
