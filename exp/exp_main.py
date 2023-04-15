@@ -17,6 +17,7 @@ import warnings
 import matplotlib.pyplot as plt
 import numpy as np
 
+from torchsummary import summary
 warnings.filterwarnings('ignore')
 
 
@@ -38,9 +39,9 @@ class Exp_Main(Exp_Basic):
         if self.args.use_multi_gpu and self.args.use_gpu:
             model = nn.DataParallel(model, device_ids=self.args.device_ids)
         elif self.args.use_mps:
-            model = nn.DataParallel(model).to(self.device) 
+            model = nn.DataParallel(model).to(self.device)
+            summary(model)
 
-    
         return model
 
     def _get_data(self, flag):
@@ -129,11 +130,10 @@ class Exp_Main(Exp_Basic):
                 iter_count += 1
                 model_optim.zero_grad()
                 batch_x = batch_x.float().to(self.device)
-
                 batch_y = batch_y.float().to(self.device)
                 batch_x_mark = batch_x_mark.float().to(self.device)
                 batch_y_mark = batch_y_mark.float().to(self.device)
-
+                
                 # decoder input
                 dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len:, :]).float()
                 """
