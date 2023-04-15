@@ -256,7 +256,7 @@ class Dataset_Custom(Dataset):
             data = df_data.values
 
         df_stamp = df_raw[['date_time']][border1:border2]
-        df_stamp['date_time'] = pd.to_datetime(df_stamp.date)
+        df_stamp['date_time'] = pd.to_datetime(df_stamp.date_time)
         # If timeenc = 0 de-compose the datetime column into m, d, w and h, and drop the original date column. 
         if self.timeenc == 0:
             # The second argument of apply(), 1, specifies that the function is applied row-wise, i.e., to each row of the 'date' column.
