@@ -3,11 +3,12 @@ import torch.nn as nn
 from ns_layers.Transformer_EncDec import Decoder, DecoderLayer, Encoder, EncoderLayer
 from ns_layers.SelfAttention_Family import DSAttention, AttentionLayer
 from layers.Embed import DataEmbedding
+from torchsummary import summary
 
 
 class Projector(nn.Module):
     '''
-    MLP to learn the De-stationary factors
+    MLP to learn the De-stationary factors. For tau learner output_dim=1
     '''
     def __init__(self, enc_in, seq_len, hidden_dims, hidden_layers, output_dim, kernel_size=3):
         super(Projector, self).__init__()
@@ -27,7 +28,7 @@ class Projector(nn.Module):
         # stats: B x 1 x E
         # y:     B x O
         batch_size = x.shape[0]
-        x = self.series_conv(x)          # B x 1 x E
+        x = self.series_conv(x)          # B x 1 x E  The shape of series_conv = seq_length x 3
         x = torch.cat([x, stats], dim=1) # B x 2 x E
         x = x.view(batch_size, -1) # B x 2E
         y = self.backbone(x)       # B x O
@@ -46,9 +47,9 @@ class Model(nn.Module):
         self.output_attention = configs.output_attention
 
         # Embedding
-        self.enc_embedding = DataEmbedding(configs.enc_in, configs.d_model, configs.embed, configs.freq,
+        self.enc_embedding = DataEmbedding(configs.enc_in, configs.d_model, configs.seq_len, configs.embed, configs.freq,
                                            configs.dropout)
-        self.dec_embedding = DataEmbedding(configs.dec_in, configs.d_model, configs.embed, configs.freq,
+        self.dec_embedding = DataEmbedding(configs.dec_in, configs.d_model, configs.seq_len, configs.embed, configs.freq,
                                            configs.dropout)
         # Encoder
         self.encoder = Encoder(
@@ -100,17 +101,20 @@ class Model(nn.Module):
         std_enc = torch.sqrt(torch.var(x_enc, dim=1, keepdim=True, unbiased=False) + 1e-5).detach() # B x 1 x E
         x_enc = x_enc / std_enc
         x_dec_new = torch.cat([x_enc[:, -self.label_len: , :], torch.zeros_like(x_dec[:, -self.pred_len:, :])], dim=1).to(x_enc.device).clone()
-
+        
         tau = self.tau_learner(x_raw, std_enc).exp()     # B x S x E, B x 1 x E -> B x 1, positive scalar    
         delta = self.delta_learner(x_raw, mean_enc)      # B x S x E, B x 1 x E -> B x S
-
+        #print('Shape of tau ', tau.size())
+        #print('Shape of delta ', delta.size())
         # Model Inference
         enc_out = self.enc_embedding(x_enc, x_mark_enc)
+        print('Shape of enc_out input = ', enc_out.size())
         enc_out, attns = self.encoder(enc_out, attn_mask=enc_self_mask, tau=tau, delta=delta)
-
+        print('Shape of enc_out output = ', enc_out.size())
         dec_out = self.dec_embedding(x_dec_new, x_mark_dec)
+        print('Shape of dec_out input = ', dec_out.size())
         dec_out = self.decoder(dec_out, enc_out, x_mask=dec_self_mask, cross_mask=dec_enc_mask, tau=tau, delta=delta)
-
+        print('Shape of dec_out output', dec_out.size())
         # De-normalization
         dec_out = dec_out * std_enc + mean_enc
 
