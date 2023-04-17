@@ -1,24 +1,25 @@
 python -u run.py \
   --is_training 1 \
   --root_path ./dataset/cryptbars/ \
-  --data_path binance_BTCUSD_ohlcv_5e6_vwapret1_for_ns_Transformer.pkl \
-  --model_id binance_ohlcv_5e6_fixed_emb_vwaprep1_32x16 \
+  --data_path binance_BTCUSD_ohlcv_5e6_for_ns_Transformer.pkl \
+  --model_id binance_ohlcv_5e6_timeF_emb_tval_32x16 \
   --model ns_Transformer \
   --data custom \
-  --features MS \
-  --target vwapret1 \
+  --features MT \
+  --mask_targets \
+  --targets t_value \
   --freq ns \
   --seq_len 48 \
-  --label_len 12 \
-  --pred_len 12 \
+  --label_len 24 \
+  --pred_len 1 \
   --e_layers 2 \
   --d_layers 1 \
   --factor 3 \
   --enc_in 51 \
   --dec_in 51 \
   --c_out 51 \
-  --embed fixed \
-  --des 'Fixed_emb_binanceBTCUSD_bars_pred_vwaprep1_hidden32x16' \
+  --embed timeF \
+  --des 'timeF_emb_binanceBTCUSD_bars_tval_masked_hidden32x16' \
   --p_hidden_dims 32 16\
   --p_hidden_layers 2 \
   --itr 1 & 

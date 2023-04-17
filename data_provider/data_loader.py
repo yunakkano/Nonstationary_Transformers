@@ -192,7 +192,7 @@ class Dataset_ETT_minute(Dataset):
 class Dataset_Custom(Dataset):
     def __init__(self, root_path, flag='train', size=None,
                  features='S', data_path='ETTh1.csv',
-                 target='OT', scale=True, timeenc=0, freq='h'):
+                 targets=['OT'], scale=True, timeenc=0, freq='h'):
         # size [seq_len, label_len, pred_len]
         # info
         if size == None:
@@ -211,7 +211,7 @@ class Dataset_Custom(Dataset):
         self.set_type = type_map[flag]
 
         self.features = features
-        self.target = target
+        self.targets = targets
         self.scale = scale
         self.timeenc = timeenc
         self.freq = freq
@@ -230,9 +230,9 @@ class Dataset_Custom(Dataset):
         df_raw.columns: ['date_time', ...(other features), target feature]
         '''
         cols = list(df_raw.columns)
-        cols.remove(self.target)
+        cols = [col for col in cols if col not in self.targets]
         cols.remove('date_time')
-        df_raw = df_raw[['date_time'] + cols + [self.target]]
+        df_raw = df_raw[['date_time'] + cols + self.targets]
         # print(cols)
         num_train = int(len(df_raw) * 0.7)
         num_test = int(len(df_raw) * 0.2)
@@ -242,11 +242,11 @@ class Dataset_Custom(Dataset):
         border1 = border1s[self.set_type] # set_type = 0, 1, 2 (train, valid, test)
         border2 = border2s[self.set_type] # x_0,x_1,x_2,......,x_border1,.....x_border2,......x_n
 
-        if self.features == 'M' or self.features == 'MS':
+        if self.features == 'M' or self.features == 'MS' or self.features == 'MT':
             cols_data = df_raw.columns[1:]
             df_data = df_raw[cols_data]
         elif self.features == 'S':
-            df_data = df_raw[[self.target]]
+            df_data = df_raw[self.targets]
 
         if self.scale:
             train_data = df_data[border1s[0]:border2s[0]] # x_0,x_1,x_2,...,x_num_train,...

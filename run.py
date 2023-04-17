@@ -20,8 +20,10 @@ def main():
     parser.add_argument('--root_path', type=str, default='./data/ETT/', help='root path of the data file')
     parser.add_argument('--data_path', type=str, default='ETTh2.csv', help='data file')
     parser.add_argument('--features', type=str, default='M',
-                        help='forecasting task, options:[M, S, MS]; M:multivariate predict multivariate, S:univariate predict univariate, MS:multivariate predict univariate')
-    parser.add_argument('--target', type=str, default='OT', help='target feature in S or MS task')
+                        help='forecasting task, options:[M, S, MS, MT]; M:multivariate predict multivariate, S:univariate predict univariate, MS:multivariate predict univariate')
+    #parser.add_argument('--target', type=str, default='OT', help='target feature in S or MS task')
+    parser.add_argument('--mask_targets', action='store_true', default=False, help='whether to feed past labels (y vector) to the model.')
+    parser.add_argument('--targets', type=str, nargs='+', default=['OT'], help='target features in MT task (List)')
     parser.add_argument('--freq', type=str, default='h',
                         help='freq for time features encoding, options:[s:secondly, t:minutely, h:hourly, d:daily, b:business days, w:weekly, m:monthly], you can also use more detailed freq like 15min or 3h')
     parser.add_argument('--checkpoints', type=str, default='./checkpoints/', help='location of model checkpoints')
@@ -95,6 +97,9 @@ def main():
         else:
             torch.cuda.set_device(args.gpu)
 
+    # If --mask_targets option is true, set the number of targets to hide. If False, use target information for training.
+    args.num_masked_targets = len(args.targets) if args.mask_targets else 0
+
     print('Args in experiment:')
     print(args)
 
@@ -103,7 +108,7 @@ def main():
     if args.is_training:
         for ii in range(args.itr):
             # setting record of experiments
-            setting = '{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_{}'.format(
+            setting = '{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_'.format(
                 args.model_id,
                 args.model,
                 args.data,
@@ -119,7 +124,7 @@ def main():
                 args.factor,
                 args.embed,
                 args.distil,
-                args.des, ii)
+                args.des) + "_".join(args.targets) + f"_{ii}"
 
             exp = Exp(args)  # set experiments
             print('>>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))
@@ -153,7 +158,7 @@ def main():
                                                                                                     args.factor,
                                                                                                     args.embed,
                                                                                                     args.distil,
-                                                                                                    args.des, ii)
+                                                                                                    args.des) + "_".join(args.targets) + f"_{ii}"
 
         exp = Exp(args)  # set experiments
         print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))

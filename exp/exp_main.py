@@ -60,8 +60,8 @@ class Exp_Main(Exp_Basic):
         total_loss = []
         self.model.eval()
         with torch.no_grad():
-                # batch_x, batch_y,.... refer data_provider.data_loader class Dataset __getitem__()
-                # batch_x_mark, batch_y_mark) = time series index
+            # batch_x, batch_y,.... refer data_provider.data_loader class Dataset __getitem__()
+            # batch_x_mark, batch_y_mark) = time series index
             for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(vali_loader):
                 batch_x = batch_x.float().to(self.device)
                 batch_y = batch_y.float()
@@ -84,10 +84,14 @@ class Exp_Main(Exp_Basic):
                         outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
                     else:
                         outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-                f_dim = -1 if self.args.features == 'MS' else 0
+                if self.args.features == 'MT':
+                    f_dim = - self.args.num_masked_targets
+                elif self.args.features == 'MS':
+                    f_dim = -1
+                else:
+                    f_dim = 0
                 outputs = outputs[:, -self.args.pred_len:, f_dim:]
                 batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
-
                 pred = outputs.detach().cpu()
                 true = batch_y.detach().cpu()
 
@@ -133,13 +137,14 @@ class Exp_Main(Exp_Basic):
                 batch_y = batch_y.float().to(self.device)
                 batch_x_mark = batch_x_mark.float().to(self.device)
                 batch_y_mark = batch_y_mark.float().to(self.device)
-                
+
                 # decoder input
                 dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len:, :]).float()
                 """
                  we will take the known 5 days before the target sequence as “starttoken”, and feed the generative-style inference 
                  decoder with Xde = {X5d, X0}. The X0 contains target sequence’s timestamp, i.e., the context at the target week
                 """
+                # dec_inp -> B x (label_len + pred_len) x E
                 dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
 
                 # encoder - decoder
@@ -150,7 +155,13 @@ class Exp_Main(Exp_Basic):
                         else:
                             outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
 
-                        f_dim = -1 if self.args.features == 'MS' else 0
+                        if self.args.features == 'MT':
+                            f_dim = - self.args.num_masked_targets
+                        elif self.args.features == 'MS':
+                            f_dim = -1
+                        else:
+                            f_dim = 0
+
                         outputs = outputs[:, -self.args.pred_len:, f_dim:]
                         batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
                         loss = criterion(outputs, batch_y)
@@ -161,7 +172,12 @@ class Exp_Main(Exp_Basic):
                     else:
                         outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
 
-                    f_dim = -1 if self.args.features == 'MS' else 0
+                    if self.args.features == 'MT':
+                        f_dim = - self.args.num_masked_targets
+                    elif self.args.features == 'MS':
+                        f_dim = -1
+                    else:
+                        f_dim = 0
                     outputs = outputs[:, -self.args.pred_len:, f_dim:]
                     batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
                     loss = criterion(outputs, batch_y)
@@ -236,11 +252,15 @@ class Exp_Main(Exp_Basic):
                 else:
                     if self.args.output_attention:
                         outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
-
                     else:
                         outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
 
-                f_dim = -1 if self.args.features == 'MS' else 0
+                if self.args.features == 'MT':
+                    f_dim = - self.args.num_masked_targets
+                elif self.args.features == 'MS':
+                    f_dim = -1
+                else:
+                    f_dim = 0
                 outputs = outputs[:, -self.args.pred_len:, f_dim:]
                 batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
                 outputs = outputs.detach().cpu().numpy()

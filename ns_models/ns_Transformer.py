@@ -45,6 +45,7 @@ class Model(nn.Module):
         self.seq_len = configs.seq_len
         self.label_len = configs.label_len
         self.output_attention = configs.output_attention
+        self.num_masked_targets = configs.num_masked_targets # Integer to indicate number of target features to be masked out. 
 
         # Embedding
         self.enc_embedding = DataEmbedding(configs.enc_in, configs.d_model, configs.seq_len, configs.embed, configs.freq,
@@ -97,28 +98,40 @@ class Model(nn.Module):
 
         # Normalization
         mean_enc = x_enc.mean(1, keepdim=True).detach() # B x 1 x E
-        x_enc = x_enc - mean_enc
-        std_enc = torch.sqrt(torch.var(x_enc, dim=1, keepdim=True, unbiased=False) + 1e-5).detach() # B x 1 x E
+        x_enc = x_enc - mean_enc                        # B x S x E (this operation creates a new object from original x_enc)
+        std_enc = torch.sqrt(
+            torch.var(x_enc, dim=1, keepdim=True, unbiased=False) + 1e-5
+            ).detach()                                  # B x 1 x E
         x_enc = x_enc / std_enc
-        x_dec_new = torch.cat([x_enc[:, -self.label_len: , :], torch.zeros_like(x_dec[:, -self.pred_len:, :])], dim=1).to(x_enc.device).clone()
         
-        tau = self.tau_learner(x_raw, std_enc).exp()     # B x S x E, B x 1 x E -> B x 1, positive scalar    
-        delta = self.delta_learner(x_raw, mean_enc)      # B x S x E, B x 1 x E -> B x S
-        #print('Shape of tau ', tau.size())
-        #print('Shape of delta ', delta.size())
+        # Mask target features so that the model does not learn from those features.
+        if self.num_masked_targets > 0:
+            x_enc[:,:,-self.num_masked_targets:] = 0
+            x_raw[:,:,-self.num_masked_targets:] = 0
+            x_dec[:,:,-self.num_masked_targets:] = 0
+
+        x_dec_new = torch.cat(                          # (B x label_len x E) + (B x pred_len x E) 
+            [x_enc[:, -self.label_len: , :], torch.zeros_like(x_dec[:, -self.pred_len:, :])], 
+            dim=1
+        ).to(x_enc.device).clone() 
+        
+        tau = self.tau_learner(x_raw, std_enc).exp()    # B x S x E, B x 1 x E -> B x 1, positive scalar    
+        delta = self.delta_learner(x_raw, mean_enc)     # B x S x E, B x 1 x E -> B x S
+
         # Model Inference
-        enc_out = self.enc_embedding(x_enc, x_mark_enc)
-        print('Shape of enc_out input = ', enc_out.size())
-        enc_out, attns = self.encoder(enc_out, attn_mask=enc_self_mask, tau=tau, delta=delta)
-        print('Shape of enc_out output = ', enc_out.size())
-        dec_out = self.dec_embedding(x_dec_new, x_mark_dec)
-        print('Shape of dec_out input = ', dec_out.size())
-        dec_out = self.decoder(dec_out, enc_out, x_mask=dec_self_mask, cross_mask=dec_enc_mask, tau=tau, delta=delta)
-        print('Shape of dec_out output', dec_out.size())
+        #print("x_enc input = ", x_enc[:2,:,:])
+        enc_out = self.enc_embedding(x_enc, x_mark_enc)                         # B x S x 512
+        enc_out, attns = self.encoder(enc_out, attn_mask=enc_self_mask, 
+                                      tau=tau, delta=delta)                     # B x S x 512
+        #print("x_dec_new input = ", x_dec_new[:2,:,:])
+        dec_out = self.dec_embedding(x_dec_new, x_mark_dec)                     # B x (label_len + pred_len) x 512
+        dec_out = self.decoder(dec_out, enc_out, x_mask=dec_self_mask, 
+                               cross_mask=dec_enc_mask, tau=tau, delta=delta)   # B x (label_len + pred_len) x E
+
         # De-normalization
         dec_out = dec_out * std_enc + mean_enc
 
         if self.output_attention:
             return dec_out[:, -self.pred_len:, :], attns
         else:
-            return dec_out[:, -self.pred_len:, :]  # [B, L, D]
+            return dec_out[:, -self.pred_len:, :]  # [B, L, E]
